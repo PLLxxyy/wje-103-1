@@ -1,4 +1,5 @@
 import type { GroupBuy, PickupPoint } from './groupbuy';
+import type { Review } from './review';
 import type { User } from './user';
 
 export type JoinRecord = {
@@ -13,6 +14,7 @@ export type JoinRecord = {
   groupBuy?: GroupBuy;
   user?: User;
   pickupPoint?: PickupPoint;
+  review?: Review | null;
 };
 
 export type JoinPayload = {

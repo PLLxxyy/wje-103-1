@@ -1,5 +1,6 @@
 import { prisma } from '../utils/prisma';
 import { AppError } from '../utils/response';
+import { reviewService } from './review.service';
 
 const groupBuyForShop = {
   shop: true,
@@ -22,9 +23,20 @@ const groupBuyForShop = {
   }
 };
 
+const attachGroupBuyRatings = (groupBuys: Array<{ id: string }>) => {
+  if (!groupBuys.length) return Promise.resolve(groupBuys);
+  return reviewService.batchGetGroupBuyRatings(groupBuys.map((g) => g.id)).then((ratingMap) =>
+    groupBuys.map((gb) => ({
+      ...gb,
+      average_rating: ratingMap[gb.id]?.average_rating ?? 0,
+      review_count: ratingMap[gb.id]?.review_count ?? 0
+    }))
+  );
+};
+
 export const shopService = {
   async list() {
-    return prisma.shop.findMany({
+    const shops = await prisma.shop.findMany({
       include: {
         dessertItems: true,
         groupBuys: {
@@ -34,6 +46,15 @@ export const shopService = {
       },
       orderBy: { created_at: 'desc' }
     });
+    return Promise.all(
+      shops.map(async (shop) => {
+        const [rating, groupBuys] = await Promise.all([
+          reviewService.getShopRating(shop.id),
+          attachGroupBuyRatings(shop.groupBuys as Array<{ id: string }>)
+        ]);
+        return { ...shop, ...rating, groupBuys };
+      })
+    );
   },
 
   async detail(id: string) {
@@ -50,7 +71,11 @@ export const shopService = {
     if (!shop) {
       throw new AppError('店铺不存在', 404);
     }
-    return shop;
+    const [rating, groupBuys] = await Promise.all([
+      reviewService.getShopRating(id),
+      attachGroupBuyRatings(shop.groupBuys as Array<{ id: string }>)
+    ]);
+    return { ...shop, ...rating, groupBuys };
   },
 
   async dessertItems(shopId: string) {

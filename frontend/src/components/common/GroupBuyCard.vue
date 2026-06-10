@@ -35,6 +35,13 @@ const cover = computed(() => props.groupBuy.shop?.logo || 'https://images.unspla
         <span>已接 {{ joinedQuantity }}/{{ groupBuy.min_quantity }}</span>
         <CountdownTimer :deadline="groupBuy.deadline" quiet />
       </div>
+      <div v-if="groupBuy.review_count > 0" class="rating-row">
+        <span class="rating-stars">
+          <i v-for="i in 5" :key="i" :class="{ filled: i <= Math.round(groupBuy.average_rating) }">★</i>
+        </span>
+        <span class="rating-score">{{ groupBuy.average_rating.toFixed(1) }}</span>
+        <span class="rating-count">({{ groupBuy.review_count }}条评价)</span>
+      </div>
       <van-progress :percentage="progress" :show-pivot="false" color="#e35d6a" track-color="#f3e3d2" />
     </div>
   </RouterLink>
@@ -109,5 +116,31 @@ h3 {
   color: #9a8a7d;
   font-size: 12px;
   text-decoration: line-through;
+}
+
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.rating-stars i {
+  font-style: normal;
+  color: #eedccb;
+  font-size: 13px;
+}
+
+.rating-stars i.filled {
+  color: #ffb23d;
+}
+
+.rating-score {
+  color: #d94f5d;
+  font-weight: 700;
+}
+
+.rating-count {
+  color: #9a8a7d;
 }
 </style>

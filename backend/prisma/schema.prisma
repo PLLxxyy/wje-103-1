@@ -32,6 +32,7 @@ model User {
   groupBuys     GroupBuy[]   @relation("LeaderGroupBuys")
   joinRecords   JoinRecord[]
   voteRecords   VoteRecord[]
+  reviews       Review[]
 
   @@map("users")
 }
@@ -81,6 +82,7 @@ model GroupBuy {
   joinRecords     JoinRecord[]
   pickupPoints    PickupPoint[]
   voteOptions     VoteOption[]
+  reviews         Review[]
 
   @@index([shop_id])
   @@index([leader_id])
@@ -112,6 +114,7 @@ model JoinRecord {
   groupBuy        GroupBuy    @relation(fields: [group_buy_id], references: [id], onDelete: Cascade)
   user            User        @relation(fields: [user_id], references: [id])
   pickupPoint     PickupPoint @relation(fields: [pickup_point_id], references: [id])
+  review          Review?
 
   @@index([group_buy_id])
   @@index([user_id])
@@ -140,4 +143,21 @@ model VoteRecord {
   @@unique([vote_option_id, user_id])
   @@index([user_id])
   @@map("vote_records")
+}
+
+model Review {
+  id              String     @id @default(cuid()) @db.VarChar(191)
+  group_buy_id    String     @db.VarChar(191)
+  user_id         String     @db.VarChar(191)
+  join_record_id  String     @db.VarChar(191) @unique
+  rating          Int
+  content         String     @db.Text
+  created_at      DateTime   @default(now())
+  groupBuy        GroupBuy   @relation(fields: [group_buy_id], references: [id], onDelete: Cascade)
+  user            User       @relation(fields: [user_id], references: [id])
+  joinRecord      JoinRecord @relation(fields: [join_record_id], references: [id], onDelete: Cascade)
+
+  @@index([group_buy_id])
+  @@index([user_id])
+  @@map("reviews")
 }

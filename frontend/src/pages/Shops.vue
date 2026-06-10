@@ -48,6 +48,13 @@ onMounted(async () => {
       <img :src="selectedShop.logo || ''" :alt="selectedShop.name" />
       <div>
         <h1>{{ selectedShop.name }}</h1>
+        <div v-if="selectedShop.review_count > 0" class="shop-rating">
+          <span class="stars">
+            <i v-for="i in 5" :key="i" :class="{ filled: i <= Math.round(selectedShop.average_rating) }">★</i>
+          </span>
+          <span class="rating-score">{{ selectedShop.average_rating.toFixed(1) }}</span>
+          <span class="rating-count">({{ selectedShop.review_count }}条评价)</span>
+        </div>
         <p>{{ selectedShop.description }}</p>
         <span>{{ selectedShop.address }} · {{ selectedShop.contact_phone }}</span>
       </div>
@@ -152,6 +159,33 @@ onMounted(async () => {
   margin: 0 0 8px;
   font-size: 22px;
   line-height: 1.2;
+}
+
+.shop-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.shop-rating .stars i {
+  font-style: normal;
+  color: #eedccb;
+  font-size: 14px;
+}
+
+.shop-rating .stars i.filled {
+  color: #ffb23d;
+}
+
+.shop-rating .rating-score {
+  color: #d94f5d;
+  font-weight: 700;
+}
+
+.shop-rating .rating-count {
+  color: #9a8a7d;
 }
 
 .shop-hero p {

@@ -35,7 +35,8 @@ const joinInclude = {
       created_at: true
     }
   },
-  pickupPoint: true
+  pickupPoint: true,
+  review: true
 };
 
 export type JoinInput = {

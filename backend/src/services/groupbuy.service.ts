@@ -1,6 +1,7 @@
 import { GroupBuyStatus, UserRole } from '../types/enums';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../utils/response';
+import { reviewService } from './review.service';
 
 const groupBuyInclude = {
   shop: true,
@@ -27,7 +28,8 @@ const groupBuyInclude = {
           created_at: true
         }
       },
-      pickupPoint: true
+      pickupPoint: true,
+      review: true
     },
     orderBy: {
       joined_at: 'desc' as const
@@ -85,7 +87,7 @@ export const groupBuyService = {
 
   async list(params: { status?: GroupBuyStatus; shopId?: string; leaderId?: string }) {
     await this.closeExpiredRecruiting();
-    return prisma.groupBuy.findMany({
+    const list = await prisma.groupBuy.findMany({
       where: {
         status: params.status,
         shop_id: params.shopId,
@@ -94,6 +96,12 @@ export const groupBuyService = {
       include: groupBuyInclude,
       orderBy: { created_at: 'desc' }
     });
+    const ratingMap = await reviewService.batchGetGroupBuyRatings(list.map((item) => item.id));
+    return list.map((item) => ({
+      ...item,
+      average_rating: ratingMap[item.id]?.average_rating ?? 0,
+      review_count: ratingMap[item.id]?.review_count ?? 0
+    }));
   },
 
   async detail(id: string) {
@@ -105,7 +113,8 @@ export const groupBuyService = {
     if (!groupBuy) {
       throw new AppError('团购不存在', 404);
     }
-    return groupBuy;
+    const rating = await reviewService.getGroupBuyRating(id);
+    return { ...groupBuy, ...rating };
   },
 
   async create(input: CreateGroupBuyInput, leaderId: string) {
@@ -124,7 +133,7 @@ export const groupBuyService = {
       throw new AppError('截止时间必须晚于当前时间');
     }
 
-    return prisma.groupBuy.create({
+    const groupBuy = await prisma.groupBuy.create({
       data: {
         title: input.title.trim(),
         description: input.description?.trim() || '团长还没有补充说明',
@@ -153,6 +162,7 @@ export const groupBuyService = {
       },
       include: groupBuyInclude
     });
+    return { ...groupBuy, average_rating: 0, review_count: 0 };
   },
 
   async updateStatus(id: string, status: GroupBuyStatus, actor: { id: string; role: UserRole }) {
@@ -168,10 +178,12 @@ export const groupBuyService = {
       throw new AppError('只能管理自己发起的团购', 403);
     }
 
-    return prisma.groupBuy.update({
+    const updated = await prisma.groupBuy.update({
       where: { id },
       data: { status },
       include: groupBuyInclude
     });
+    const rating = await reviewService.getGroupBuyRating(id);
+    return { ...updated, ...rating };
   }
 };

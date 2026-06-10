@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { showSuccessToast } from 'vant';
 import CountdownTimer from '@/components/common/CountdownTimer.vue';
 import PickupPointTag from '@/components/common/PickupPointTag.vue';
+import ReviewDialog from '@/components/common/ReviewDialog.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import { useAuth } from '@/hooks/useAuth';
 import { useCountdown } from '@/hooks/useCountdown';
 import { useGroupBuyStore } from '@/stores/useGroupBuyStore';
 import { useJoinStore } from '@/stores/useJoinStore';
+import { useReviewStore } from '@/stores/useReviewStore';
 import { useVoteStore } from '@/stores/useVoteStore';
 import { GroupBuyStatus, UserRole, VoteStatus, groupBuyStatusText } from '@/types/enums';
 import { formatDateTime, formatPrice, maskPhone } from '@/utils/format';
+import type { JoinRecord } from '@/types/join';
 
 const route = useRoute();
 const auth = useAuth();
 const groupBuyStore = useGroupBuyStore();
 const joinStore = useJoinStore();
 const voteStore = useVoteStore();
+const reviewStore = useReviewStore();
 const id = computed(() => String(route.params.id));
 const detail = computed(() => groupBuyStore.current);
 const deadline = computed(() => detail.value?.deadline ?? new Date().toISOString());
 const countdown = useCountdown(deadline);
+
+const reviewVisible = ref(false);
+const reviewableJoin = ref<JoinRecord | null>(null);
 
 const joinForm = reactive({
   flavor: '',
@@ -59,9 +66,35 @@ const selectedPickup = computed(() =>
   detail.value?.pickupPoints?.find((point) => point.id === joinForm.pickup_point_id)
 );
 
+const myReviewableRecord = computed(() => {
+  const userId = auth.currentUser.value?.id;
+  if (!userId || !detail.value?.joinRecords) return null;
+  return (
+    detail.value.joinRecords.find(
+      (r) => r.user_id === userId && r.picked_up && !r.review
+    ) ?? null
+  );
+});
+
+const reviews = computed(() => reviewStore.groupBuyReviews);
+
 const refresh = async () => {
-  await groupBuyStore.fetchDetail(id.value);
-  await voteStore.fetchResults(id.value);
+  await Promise.all([
+    groupBuyStore.fetchDetail(id.value),
+    voteStore.fetchResults(id.value),
+    reviewStore.fetchGroupBuyReviews(id.value)
+  ]);
+};
+
+const openReview = () => {
+  if (myReviewableRecord.value) {
+    reviewableJoin.value = myReviewableRecord.value;
+    reviewVisible.value = true;
+  }
+};
+
+const handleReviewSuccess = () => {
+  refresh();
 };
 
 const submitJoin = async () => {
@@ -109,6 +142,13 @@ onMounted(refresh);
         <StatusBadge :status="detail.status" />
         <h1>{{ detail.title }}</h1>
         <p>{{ detail.shop?.name }} · 团长 {{ detail.leader?.nickname }}</p>
+        <div v-if="detail.review_count > 0" class="hero-rating">
+          <span class="stars">
+            <i v-for="i in 5" :key="i" :class="{ filled: i <= Math.round(detail.average_rating) }">★</i>
+          </span>
+          <span class="score">{{ detail.average_rating.toFixed(1) }}</span>
+          <span class="count">({{ detail.review_count }}条评价)</span>
+        </div>
       </div>
       <div class="price-block">
         <strong>{{ formatPrice(detail.group_price) }}</strong>
@@ -242,6 +282,50 @@ onMounted(refresh);
         </div>
       </div>
     </section>
+
+    <section v-if="myReviewableRecord" class="section panel review-entry">
+      <div>
+        <strong>您已提货，去写个评价吧</strong>
+        <p>分享你的体验，给其他小伙伴参考</p>
+      </div>
+      <van-button type="primary" size="small" @click="openReview">去评价</van-button>
+    </section>
+
+    <section class="section panel">
+      <div class="section-title">
+        <h2>大家的评价</h2>
+        <span class="muted">{{ reviews.length }} 条</span>
+      </div>
+      <div v-if="reviews.length" class="review-list">
+        <div v-for="review in reviews" :key="review.id" class="review-item">
+          <div class="review-header">
+            <div class="review-user">
+              <img :src="review.user?.avatar || ''" :alt="review.user?.nickname" />
+              <div>
+                <strong>{{ review.user?.nickname || '匿名用户' }}</strong>
+                <span class="review-meta">
+                  <span class="stars">
+                    <i v-for="i in 5" :key="i" :class="{ filled: i <= review.rating }">★</i>
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <p class="review-content">{{ review.content }}</p>
+          <div class="review-footer">
+            <span>{{ review.joinRecord?.flavor }} × {{ review.joinRecord?.quantity }}</span>
+            <span class="review-time">{{ formatDateTime(review.created_at) }}</span>
+          </div>
+        </div>
+      </div>
+      <p v-else class="empty-copy">暂无评价</p>
+    </section>
+
+    <ReviewDialog
+      v-model:visible="reviewVisible"
+      :join-record="reviewableJoin"
+      @success="handleReviewSuccess"
+    />
   </main>
   <main v-else class="page">
     <van-skeleton title :row="6" />
@@ -388,5 +472,136 @@ onMounted(refresh);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hero-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.hero-rating .stars i {
+  font-style: normal;
+  color: rgba(255, 248, 242, 0.4);
+  font-size: 14px;
+}
+
+.hero-rating .stars i.filled {
+  color: #ffd27d;
+}
+
+.hero-rating .score {
+  color: #fff8f2;
+  font-weight: 700;
+}
+
+.hero-rating .count {
+  color: rgba(255, 248, 242, 0.78);
+}
+
+.review-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff1f2;
+  border-color: #f5c6cb;
+}
+
+.review-entry strong {
+  color: #d94f5d;
+  font-size: 14px;
+}
+
+.review-entry p {
+  margin: 4px 0 0;
+  color: #826d60;
+  font-size: 12px;
+}
+
+.review-list {
+  display: grid;
+  gap: 14px;
+}
+
+.review-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #ead8c7;
+}
+
+.review-item:last-child {
+  border-bottom: 0;
+}
+
+.review-header {
+  margin-bottom: 8px;
+}
+
+.review-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-user img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.review-user div {
+  display: grid;
+  gap: 3px;
+}
+
+.review-user strong {
+  color: #33221b;
+  font-size: 14px;
+}
+
+.review-meta {
+  display: flex;
+  align-items: center;
+}
+
+.review-meta .stars i {
+  font-style: normal;
+  color: #eedccb;
+  font-size: 12px;
+}
+
+.review-meta .stars i.filled {
+  color: #ffb23d;
+}
+
+.review-content {
+  margin: 0 0 8px;
+  color: #4d382d;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.review-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #9a8a7d;
+}
+
+.review-time {
+  font-size: 12px;
+  color: #b0a39a;
+}
+
+.empty-copy {
+  margin: 0;
+  padding: 20px 0;
+  text-align: center;
+  color: #b0a39a;
+  font-size: 13px;
 }
 </style>

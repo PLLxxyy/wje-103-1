@@ -1,18 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import GroupBuyCard from '@/components/common/GroupBuyCard.vue';
 import PickupPointTag from '@/components/common/PickupPointTag.vue';
+import ReviewDialog from '@/components/common/ReviewDialog.vue';
 import { useAuth } from '@/hooks/useAuth';
 import { useJoinStore } from '@/stores/useJoinStore';
 import { formatDateTime } from '@/utils/format';
+import type { JoinRecord } from '@/types/join';
 
 const auth = useAuth();
 const joinStore = useJoinStore();
+const reviewVisible = ref(false);
+const selectedJoin = ref<JoinRecord | null>(null);
 
 const totalQuantity = computed(() =>
   joinStore.myJoins.reduce((sum, record) => sum + Number(record.quantity), 0)
 );
 const pendingPickup = computed(() => joinStore.myJoins.filter((record) => !record.picked_up).length);
+
+const openReview = (record: JoinRecord) => {
+  selectedJoin.value = record;
+  reviewVisible.value = true;
+};
+
+const handleReviewSuccess = () => {
+  joinStore.fetchMyJoins();
+};
 
 onMounted(() => {
   joinStore.fetchMyJoins();
@@ -57,9 +70,30 @@ onMounted(() => {
           </van-tag>
         </div>
         <PickupPointTag v-if="record.pickupPoint" :point="record.pickupPoint" />
+        <div class="join-actions">
+          <template v-if="record.picked_up">
+            <van-button
+              v-if="!record.review"
+              size="small"
+              type="primary"
+              plain
+              @click="openReview(record)"
+            >
+              去评价
+            </van-button>
+            <van-tag v-else type="primary" round>
+              已评价
+            </van-tag>
+          </template>
+        </div>
       </article>
       <van-empty v-if="!joinStore.loading && joinStore.myJoins.length === 0" description="暂无接龙记录" />
     </section>
+    <ReviewDialog
+      v-model:visible="reviewVisible"
+      :join-record="selectedJoin"
+      @success="handleReviewSuccess"
+    />
   </main>
 </template>
 
@@ -140,5 +174,10 @@ onMounted(() => {
 .join-meta span {
   color: #826d60;
   font-size: 12px;
+}
+
+.join-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

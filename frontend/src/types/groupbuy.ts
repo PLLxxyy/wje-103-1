@@ -1,5 +1,6 @@
 import type { GroupBuyStatus, VoteStatus } from './enums';
 import type { JoinRecord } from './join';
+import type { Review } from './review';
 import type { Shop } from './shop';
 import type { User } from './user';
 
@@ -46,11 +47,14 @@ export type GroupBuy = {
   status: GroupBuyStatus;
   pickup_notes?: string | null;
   created_at: string;
+  average_rating?: number;
+  review_count?: number;
   shop?: Shop;
   leader?: User;
   joinRecords?: JoinRecord[];
   pickupPoints?: PickupPoint[];
   voteOptions?: VoteOption[];
+  reviews?: Review[];
 };
 
 export type CreateGroupBuyPayload = {
