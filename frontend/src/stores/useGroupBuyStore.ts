@@ -10,6 +10,12 @@ type GroupBuyState = {
   loading: boolean;
 };
 
+const normalizeGroupBuy = (gb: any): GroupBuy => ({
+  ...gb,
+  average_rating: Number(gb.average_rating) || 0,
+  review_count: Number(gb.review_count) || 0
+});
+
 export const useGroupBuyStore = defineStore('groupBuy', {
   state: (): GroupBuyState => ({
     list: [],
@@ -23,7 +29,8 @@ export const useGroupBuyStore = defineStore('groupBuy', {
     async fetchList(params?: ListQuery) {
       this.loading = true;
       try {
-        this.list = await groupBuyApi.list(params);
+        const raw = await groupBuyApi.list(params);
+        this.list = (raw as any[]).map(normalizeGroupBuy);
         return this.list;
       } finally {
         this.loading = false;
@@ -32,20 +39,23 @@ export const useGroupBuyStore = defineStore('groupBuy', {
     async fetchDetail(id: string) {
       this.loading = true;
       try {
-        this.current = await groupBuyApi.detail(id);
+        const raw = await groupBuyApi.detail(id);
+        this.current = normalizeGroupBuy(raw);
         return this.current;
       } finally {
         this.loading = false;
       }
     },
     async create(payload: CreateGroupBuyPayload) {
-      const groupBuy = await groupBuyApi.create(payload);
+      const raw = await groupBuyApi.create(payload);
+      const groupBuy = normalizeGroupBuy(raw);
       this.list = [groupBuy, ...this.list];
       this.current = groupBuy;
       return groupBuy;
     },
     async updateStatus(id: string, status: GroupBuyStatus) {
-      const groupBuy = await groupBuyApi.updateStatus(id, status);
+      const raw = await groupBuyApi.updateStatus(id, status);
+      const groupBuy = normalizeGroupBuy(raw);
       this.current = this.current?.id === id ? groupBuy : this.current;
       this.list = this.list.map((item) => (item.id === id ? groupBuy : item));
       return groupBuy;

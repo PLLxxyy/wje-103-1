@@ -1,6 +1,7 @@
 import { GroupBuyStatus, UserRole } from '../types/enums';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../utils/response';
+import { reviewService } from './review.service';
 
 const joinInclude = {
   groupBuy: {
@@ -88,6 +89,23 @@ const buildSummary = (records: Array<{
   };
 };
 
+const attachRatingsToJoins = async <T extends { groupBuy?: { id: string } }>(records: T[]): Promise<T[]> => {
+  const groupBuyIds = Array.from(new Set(records.map((r) => r.groupBuy?.id).filter(Boolean) as string[]));
+  const ratingMap = await reviewService.batchGetGroupBuyRatings(groupBuyIds);
+  return records.map((record) =>
+    record.groupBuy
+      ? {
+          ...record,
+          groupBuy: {
+            ...record.groupBuy,
+            average_rating: ratingMap[record.groupBuy.id]?.average_rating ?? 0,
+            review_count: ratingMap[record.groupBuy.id]?.review_count ?? 0
+          }
+        }
+      : record
+  );
+};
+
 export const joinService = {
   async create(input: JoinInput, userId: string) {
     if (!input.group_buy_id || !input.pickup_point_id || !input.flavor?.trim()) {
@@ -123,7 +141,7 @@ export const joinService = {
       throw new AppError('该提货点容量不足，请选择其他提货点');
     }
 
-    return prisma.joinRecord.create({
+    const record = await prisma.joinRecord.create({
       data: {
         group_buy_id: input.group_buy_id,
         user_id: userId,
@@ -133,14 +151,17 @@ export const joinService = {
       },
       include: joinInclude
     });
+    const [withRating] = await attachRatingsToJoins([record]);
+    return withRating;
   },
 
   async myJoins(userId: string) {
-    return prisma.joinRecord.findMany({
+    const records = await prisma.joinRecord.findMany({
       where: { user_id: userId },
       include: joinInclude,
       orderBy: { joined_at: 'desc' }
     });
+    return attachRatingsToJoins(records);
   },
 
   async manage(actor: { id: string; role: UserRole }, groupBuyId?: string) {
@@ -154,9 +175,10 @@ export const joinService = {
       include: joinInclude,
       orderBy: { joined_at: 'desc' }
     });
+    const ratedRecords = await attachRatingsToJoins(records);
 
     return {
-      records,
+      records: ratedRecords,
       summary: buildSummary(records)
     };
   },
@@ -175,10 +197,12 @@ export const joinService = {
       throw new AppError('只能管理自己团购的接龙记录', 403);
     }
 
-    return prisma.joinRecord.update({
+    const updated = await prisma.joinRecord.update({
       where: { id: recordId },
       data: { picked_up: pickedUp },
       include: joinInclude
     });
+    const [withRating] = await attachRatingsToJoins([updated]);
+    return withRating;
   }
 };

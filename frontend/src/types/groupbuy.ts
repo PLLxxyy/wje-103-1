@@ -47,8 +47,8 @@ export type GroupBuy = {
   status: GroupBuyStatus;
   pickup_notes?: string | null;
   created_at: string;
-  average_rating?: number;
-  review_count?: number;
+  average_rating: number;
+  review_count: number;
   shop?: Shop;
   leader?: User;
   joinRecords?: JoinRecord[];

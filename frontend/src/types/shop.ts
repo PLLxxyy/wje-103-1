@@ -18,8 +18,8 @@ export type Shop = {
   contact_phone: string;
   logo?: string | null;
   created_at: string;
-  average_rating?: number;
-  review_count?: number;
+  average_rating: number;
+  review_count: number;
   dessertItems?: DessertItem[];
   groupBuys?: GroupBuy[];
 };
