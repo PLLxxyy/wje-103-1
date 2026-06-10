@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
-import { showSuccessToast } from 'vant';
+import { computed, reactive, ref, watch } from 'vue';
+import { showSuccessToast, showFailToast } from 'vant';
 import { useReviewStore } from '@/stores/useReviewStore';
 import type { JoinRecord } from '@/types/join';
 
@@ -21,6 +21,11 @@ const form = reactive({
   content: ''
 });
 
+const popupShow = computed({
+  get: () => props.visible,
+  set: (val: boolean) => emit('update:visible', val)
+});
+
 watch(
   () => props.visible,
   (val) => {
@@ -34,6 +39,7 @@ watch(
 const handleSubmit = async () => {
   if (!props.joinRecord) return;
   if (!form.content.trim()) {
+    showFailToast('请填写评价内容');
     return;
   }
   submitting.value = true;
@@ -46,6 +52,8 @@ const handleSubmit = async () => {
     showSuccessToast('评价成功');
     emit('update:visible', false);
     emit('success');
+  } catch (e: any) {
+    showFailToast(e?.response?.data?.message || e?.message || '评价失败');
   } finally {
     submitting.value = false;
   }
@@ -54,11 +62,10 @@ const handleSubmit = async () => {
 
 <template>
   <van-popup
-    v-model:show="visible"
+    v-model:show="popupShow"
     position="bottom"
     round
     :style="{ height: '65%' }"
-    @update:show="(val: boolean) => emit('update:visible', val)"
   >
     <div class="review-popup">
       <div class="popup-header">
